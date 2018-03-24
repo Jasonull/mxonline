@@ -6,8 +6,55 @@ from django.views.generic.base import View
 from django.contrib.auth.hashers import make_password
 
 from .models import UserProfile, EmailVerifyRecord
-from .forms import LoginForm, RegisterForm
-from utils.email_send import send_register_email
+from .forms import LoginForm, RegisterForm, ForgetPwdForm, ResetPwdForm
+from utils.email_send import send_register_email, send_forget_pwd_email
+
+
+class ForgetPwdView(View):
+    def get(self, request):
+        forget_pwd_form = ForgetPwdForm()
+        return render(request, "forget_pwd.html", {"forget_pwd_form": forget_pwd_form})
+
+    def post(self, request):
+        forget_pwd_form = ForgetPwdForm(request.POST)
+        if forget_pwd_form.is_valid():
+            email = request.POST.get("email", "")
+            send_forget_pwd_email(email)
+            return render(request, "send_success.html")
+        else:
+            return render(request, "forget_pwd.html", {"forget_pwd_form": forget_pwd_form})
+
+
+class ResetPwdViewGet(View):
+    def get(self, request, reset_code):
+        all_records = EmailVerifyRecord.objects.filter(code=reset_code)
+        if all_records:
+            for record in all_records:
+                email = record.email
+                return render(request, "reset_pwd.html", {"email": email})
+        else:
+            return render(request, "active_fail.html")
+        return render(request, "login.html")
+
+
+class ResetPwdViewPost(View):
+    def post(self, request):
+        reset_pwd_form = ResetPwdForm(request.POST)
+        if reset_pwd_form.is_valid():
+            pwd1 = request.POST.get("password1", "")
+            pwd2 = request.POST.get("password2", "")
+            email = request.POST.get("email", "")
+            if pwd1 != pwd2:
+                return render(request, "reset_pwd.html", {"msg": "密码不一致", "email": email})
+            else:
+                email = request.POST.get("email", "")
+                user = UserProfile.objects.get(email=email)
+                user.password = make_password(pwd1)
+                user.save()
+                return render(request, "login.html")
+        else:
+            email = request.POST.get("email", "")
+            return render(request, "reset_pwd.html", {"reset_pwd_form": reset_pwd_form, "email": email})
 
 
 class ActiveUserView(View):
@@ -32,18 +79,18 @@ class RegisterView(View):
     def post(self, request):
         register_form = RegisterForm(request.POST)
         if register_form.is_valid():
-            e_mail = request.POST.get("email", "")
-            if UserProfile.objects.filter(email=e_mail):
+            email = request.POST.get("email", "")
+            if UserProfile.objects.filter(email=email):
                 return render(request, "register.html", {"register_form": register_form, "msg": "邮箱已被注册"})
             pass_word = request.POST.get("password", "")
             user_profile = UserProfile()
-            user_profile.username = e_mail
-            user_profile.email = e_mail
+            user_profile.username = email
+            user_profile.email = email
             user_profile.password = make_password(pass_word)
             user_profile.is_active = False
             user_profile.save()
 
-            send_register_email(e_mail, "register")
+            send_register_email(email)
             return render(request, "login.html")
         else:
             return render(request, "register.html", {"register_form": register_form})
