@@ -20,6 +20,8 @@ class ActiveUserView(View):
                 user.is_active = True
                 user.save()
             return render(request, "login.html")
+        else:
+            return render(request, "active_fail.html")
 
 
 class RegisterView(View):
@@ -31,6 +33,8 @@ class RegisterView(View):
         register_form = RegisterForm(request.POST)
         if register_form.is_valid():
             e_mail = request.POST.get("email", "")
+            if UserProfile.objects.filter(email=e_mail):
+                return render(request, "register.html", {"register_form": register_form, "msg": "邮箱已被注册"})
             pass_word = request.POST.get("password", "")
             user_profile = UserProfile()
             user_profile.username = e_mail
